@@ -1,0 +1,6 @@
+/Debug/
+/Release/
+# Eclipse
+.metadata
+.settings
+.launch
