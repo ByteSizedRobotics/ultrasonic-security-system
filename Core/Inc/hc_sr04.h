@@ -8,9 +8,9 @@
 #ifndef INC_HC_SR04_H_
 #define INC_HC_SR04_H_
 
+#include "cmsis_os.h"
 #include "main.h"
 #include "globals.h"
-#include "hc_sr04.h"
 
 float hc_sr04_get_distance();
 

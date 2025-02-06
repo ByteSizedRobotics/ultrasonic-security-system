@@ -52,7 +52,7 @@ UART_HandleTypeDef huart2;
 osThreadId_t defaultTaskHandle;
 const osThreadAttr_t defaultTask_attributes = {
   .name = "defaultTask",
-  .stack_size = 128 * 4,
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* USER CODE BEGIN PV */
@@ -439,15 +439,20 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
     if (htim->Instance == TIM5) {
-    	if (!echo_started) { // rising edge
-    		g_echoStartTime = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_2);
-    		echo_started = 1;
-    	} else { // falling edge
-    		g_echoEndTime = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_2);
-        	echo_started = 0;
-    	}
+        if (!echo_started) {  // Rising edge
+            g_echoStartTime = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_2);
+            echo_started = 1;
+            osThreadFlagsClear(0x1);
+//            HAL_UART_Transmit(&huart2, (uint8_t*)"Rising edge detected\r\n", 22, HAL_MAX_DELAY);
+        } else {  // Falling edge
+            g_echoEndTime = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_2);
+            echo_started = 0;
+            osThreadFlagsSet(defaultTaskHandle, 0x1);
+//            HAL_UART_Transmit(&huart2, (uint8_t*)"Falling edge detected\r\n", 23, HAL_MAX_DELAY);
+        }
     }
 }
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */

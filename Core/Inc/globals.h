@@ -12,5 +12,6 @@
 
 extern volatile uint32_t g_echoStartTime;  // Stores the timestamp at the rising edge
 extern volatile uint32_t g_echoEndTime;  // Stores the timestamp at the falling edge
+extern osEventFlagsId_t echoDoneEventHandle;
 
 #endif /* INC_GLOBALS_H_ */
