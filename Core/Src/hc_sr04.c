@@ -23,7 +23,7 @@ float hc_sr04_get_distance() {
 		distance = ((0xFFFFFF - g_echoStartTime) - g_echoEndTime) * 0.034 / 2;
 	}
 
-	if (distance > 800) return -1; // timeout, no echo
+	if (distance > 400) return -1; // timeout, no echo
 
 	return distance;
 }

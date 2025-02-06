@@ -467,12 +467,11 @@ void StartDefaultTask(void *argument)
   for(;;)
   {
 	float distance = hc_sr04_get_distance();
-	if ((int) distance == -1) {
+	if (distance == -1) {
 		sprintf(msg, "Distance: OUT OF RANGE\r\n");
 	} else {
 		sprintf(msg, "Distance: %0.2f cm\r\n", distance);
 	}
-	sprintf(msg, "Distance: %0.2f cm\r\n", distance);
 	HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
 	HAL_Delay(500);
   }
