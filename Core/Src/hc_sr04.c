@@ -11,10 +11,10 @@ float hc_sr04_get_distance() {
 	HAL_GPIO_WritePin(S_TRIG_GPIO_Port, S_TRIG_Pin, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(S_TRIG_GPIO_Port, S_TRIG_Pin, GPIO_PIN_RESET);
 
-    // Wait for the event flag to be set, with a timeout (e.g., 100ms)
-//    osStatus_t status = osEventFlagsWait(echoDoneEventHandle, 0x01, osFlagsWaitAny, 100);
+	// Wait for flag to be set, meaning measurement is ready
 	osThreadFlagsWait(0x1, osFlagsWaitAny, osWaitForever);
-
+	// Reset flag
+    osThreadFlagsClear(0x1);
 
 	float distance;
 	if (g_echoStartTime < g_echoEndTime) {

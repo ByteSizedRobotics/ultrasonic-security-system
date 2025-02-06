@@ -440,15 +440,13 @@ static void MX_GPIO_Init(void)
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
     if (htim->Instance == TIM5) {
         if (!echo_started) {  // Rising edge
-            g_echoStartTime = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_2);
+            g_echoStartTime = __HAL_TIM_GET_COUNTER(&htim5);
             echo_started = 1;
-            osThreadFlagsClear(0x1);
-//            HAL_UART_Transmit(&huart2, (uint8_t*)"Rising edge detected\r\n", 22, HAL_MAX_DELAY);
         } else {  // Falling edge
-            g_echoEndTime = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_2);
+            g_echoEndTime = __HAL_TIM_GET_COUNTER(&htim5);
             echo_started = 0;
+            // Set flag, indicating measurement is ready
             osThreadFlagsSet(defaultTaskHandle, 0x1);
-//            HAL_UART_Transmit(&huart2, (uint8_t*)"Falling edge detected\r\n", 23, HAL_MAX_DELAY);
         }
     }
 }
