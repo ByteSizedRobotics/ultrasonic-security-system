@@ -24,6 +24,7 @@
 /* USER CODE BEGIN Includes */
 #include "stdio.h"
 #include "string.h"
+#include "hc_sr04.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -55,9 +56,8 @@ const osThreadAttr_t defaultTask_attributes = {
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* USER CODE BEGIN PV */
-volatile uint32_t echo_start_time;  // Stores the timestamp at the rising edge
-volatile uint32_t echo_end_time;  // Stores the timestamp at the falling edge
-volatile float distance; // stores distance from sensor
+volatile uint32_t g_echoStartTime;  // Stores the timestamp at the rising edge
+volatile uint32_t g_echoEndTime;  // Stores the timestamp at the falling edge
 volatile uint8_t echo_started = 0;  // Flag to track first/second capture
 char msg[50];
 /* USER CODE END PV */
@@ -407,7 +407,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(T1_GPIO_Port, T1_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(S_TRIG_GPIO_Port, S_TRIG_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
@@ -418,12 +418,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : T1_Pin */
-  GPIO_InitStruct.Pin = T1_Pin;
+  /*Configure GPIO pin : S_TRIG_Pin */
+  GPIO_InitStruct.Pin = S_TRIG_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(T1_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(S_TRIG_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LD2_Pin */
   GPIO_InitStruct.Pin = LD2_Pin;
@@ -440,20 +440,11 @@ static void MX_GPIO_Init(void)
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
     if (htim->Instance == TIM5) {
     	if (!echo_started) { // rising edge
-    		echo_start_time = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_2);
+    		g_echoStartTime = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_2);
     		echo_started = 1;
     	} else { // falling edge
-    		echo_end_time = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_2);
-
-    		if (echo_start_time < echo_end_time) {
-    			distance = (echo_end_time - echo_start_time) * 0.034 / 2;
-    		} else {
-    			distance = ((0xFFFFFF - echo_start_time) - echo_end_time) * 0.034 / 2;
-    		}
-
+    		g_echoEndTime = HAL_TIM_ReadCapturedValue(&htim5, TIM_CHANNEL_2);
         	echo_started = 0;
-			sprintf(msg, "Distance: %0.2f cm\r\n", distance);
-		  HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
     	}
     }
 }
@@ -472,8 +463,14 @@ void StartDefaultTask(void *argument)
   /* Infinite loop */
   for(;;)
   {
-	HAL_GPIO_TogglePin(T1_GPIO_Port, T1_Pin);
-	HAL_GPIO_TogglePin(T1_GPIO_Port, T1_Pin);
+	float distance = hc_sr04_get_distance();
+	if ((int) distance == -1) {
+		sprintf(msg, "Distance: OUT OF RANGE\r\n");
+	} else {
+		sprintf(msg, "Distance: %0.2f cm\r\n", distance);
+	}
+	sprintf(msg, "Distance: %0.2f cm\r\n", distance);
+	HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
 	HAL_Delay(500);
   }
   /* USER CODE END 5 */
