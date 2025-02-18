@@ -13,14 +13,16 @@
 
 // Structure to hold the configuration and state of the ultrasonic sensor
 struct ultrasonic_conf {
+	TIM_HandleTypeDef *timer;			 /**< Pointer for timer handle used for trigger pulse. */
     volatile uint32_t *echo_start_time;  /**< Pointer to the start time of the echo pulse. */
     volatile uint32_t *echo_end_time;    /**< Pointer to the end time of the echo pulse. */
     uint32_t flag_os_thread;             /**< OS flag used to signal completion of the echo measurement. */
 } conf;
 
 
-void ultrasonic_init(volatile uint32_t *echo_start_time, volatile uint32_t *echo_end_time, uint32_t flag_os_thread) {
-    conf.echo_start_time = echo_start_time;   // Set pointer to echo start time
+void ultrasonic_init(TIM_HandleTypeDef *timer, volatile uint32_t *echo_start_time, volatile uint32_t *echo_end_time, uint32_t flag_os_thread) {
+    conf.timer = timer;						  // Set pointer to timer handle
+	conf.echo_start_time = echo_start_time;   // Set pointer to echo start time
     conf.echo_end_time = echo_end_time;       // Set pointer to echo end time
     conf.flag_os_thread = flag_os_thread;     // Set the OS flag to notify completion
 }
@@ -28,8 +30,7 @@ void ultrasonic_init(volatile uint32_t *echo_start_time, volatile uint32_t *echo
 
 float ultrasonic_get_distance() {
     // Trigger the ultrasonic pulse
-    HAL_GPIO_WritePin(U_TRIG_PORT, U_TRIG_PIN, GPIO_PIN_SET);  // Set trigger pin high
-    HAL_GPIO_WritePin(U_TRIG_PORT, U_TRIG_PIN, GPIO_PIN_RESET); // Set trigger pin low
+	__HAL_TIM_ENABLE(conf.timer);
 
     // Wait for the OS flag to indicate that the echo measurement is done
     osThreadFlagsWait(conf.flag_os_thread, osFlagsWaitAny, osWaitForever);

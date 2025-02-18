@@ -114,7 +114,8 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_TIM_IC_Start_IT(&htim5, TIM_CHANNEL_2);
   HAL_TIM_OnePulse_Start(&htim1, TIM_CHANNEL_1);
-  ultrasonic_init(&g_echoStartTime, &g_echoEndTime, 0x1);
+
+  ultrasonic_init(&htim1, &g_echoStartTime, &g_echoEndTime, 0x1);
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -223,7 +224,6 @@ static void MX_TIM1_Init(void)
   /* USER CODE END TIM1_Init 0 */
 
   TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_SlaveConfigTypeDef sSlaveConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
   TIM_OC_InitTypeDef sConfigOC = {0};
   TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig = {0};
@@ -252,14 +252,6 @@ static void MX_TIM1_Init(void)
     Error_Handler();
   }
   if (HAL_TIM_OnePulse_Init(&htim1, TIM_OPMODE_SINGLE) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sSlaveConfig.SlaveMode = TIM_SLAVEMODE_TRIGGER;
-  sSlaveConfig.InputTrigger = TIM_TS_TI2FP2;
-  sSlaveConfig.TriggerPolarity = TIM_TRIGGERPOLARITY_RISING;
-  sSlaveConfig.TriggerFilter = 0;
-  if (HAL_TIM_SlaveConfigSynchro(&htim1, &sSlaveConfig) != HAL_OK)
   {
     Error_Handler();
   }

@@ -17,10 +17,6 @@
 #include "cmsis_os.h"  // RTOS API
 #include "main.h"      // GPIO definitions
 
-// GPIO Port and Pin for Trigger Pin
-#define U_TRIG_PORT S_TRIG_GPIO_Port
-#define U_TRIG_PIN S_TRIG_Pin
-
 // Maximum and Minimum distances for valid readings (in cm)
 #define U_MAX_DISTANCE 400
 #define U_MIN_DISTANCE 3
@@ -28,11 +24,12 @@
 /**
  * @brief Initializes the ultrasonic sensor with the provided configuration.
  *
+ * @param timer Pointer to timer handle used as trigger.
  * @param echo_start_time Pointer to a volatile variable to store the start time of the echo pulse.
  * @param echo_end_time Pointer to a volatile variable to store the end time of the echo pulse.
  * @param flag_os_thread The flag used to indicate when the echo measurement is complete in the RTOS.
  */
-void ultrasonic_init(volatile uint32_t *echo_start_time, volatile uint32_t *echo_end_time, uint32_t flag_os_thread);
+void ultrasonic_init(TIM_HandleTypeDef *timer, volatile uint32_t *echo_start_time, volatile uint32_t *echo_end_time, uint32_t flag_os_thread);
 
 /**
  * @brief Gets the distance measurement from the ultrasonic sensor.
