@@ -24,7 +24,7 @@
 /* USER CODE BEGIN Includes */
 #include "stdio.h"
 #include "string.h"
-#include "hc_sr04.h"
+#include "ultrasonic.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -114,6 +114,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_TIM_IC_Start_IT(&htim5, TIM_CHANNEL_2);
   HAL_TIM_OnePulse_Start(&htim1, TIM_CHANNEL_1);
+  ultrasonic_init(&g_echoStartTime, &g_echoEndTime, 0x1);
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -466,7 +467,7 @@ void StartDefaultTask(void *argument)
   /* Infinite loop */
   for(;;)
   {
-	float distance = hc_sr04_get_distance();
+	float distance = ultrasonic_get_distance();
 	if (distance == -1) {
 		sprintf(msg, "Distance: OUT OF RANGE\r\n");
 	} else {
