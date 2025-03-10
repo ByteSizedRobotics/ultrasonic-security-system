@@ -25,6 +25,7 @@
 #include "stdio.h"
 #include "string.h"
 #include "ultrasonic.h"
+#include "stepper.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -44,6 +45,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 TIM_HandleTypeDef htim1;
+TIM_HandleTypeDef htim4;
 TIM_HandleTypeDef htim5;
 
 UART_HandleTypeDef huart2;
@@ -68,6 +70,7 @@ static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_TIM5_Init(void);
+static void MX_TIM4_Init(void);
 void StartDefaultTask(void *argument);
 
 /* USER CODE BEGIN PFP */
@@ -111,11 +114,20 @@ int main(void)
   MX_USART2_UART_Init();
   MX_TIM1_Init();
   MX_TIM5_Init();
+  MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
+  // Ultrasonic Sensor setup
   HAL_TIM_IC_Start_IT(&htim5, TIM_CHANNEL_2);
   HAL_TIM_OnePulse_Start(&htim1, TIM_CHANNEL_1);
 
   ultrasonic_init(&htim1, &g_echoStartTime, &g_echoEndTime, 0x1);
+
+  // Stepper setup
+  HAL_TIM_Base_Start_IT(&htim4);
+  stepper_init(&htim4, TIM4_IRQn);
+
+  int pressed = 0;
+  stepper_set_speed(10000);
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -292,6 +304,51 @@ static void MX_TIM1_Init(void)
 }
 
 /**
+  * @brief TIM4 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM4_Init(void)
+{
+
+  /* USER CODE BEGIN TIM4_Init 0 */
+
+  /* USER CODE END TIM4_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM4_Init 1 */
+
+  /* USER CODE END TIM4_Init 1 */
+  htim4.Instance = TIM4;
+  htim4.Init.Prescaler = 84-1;
+  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim4.Init.Period = 50000-1;
+  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim4, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM4_Init 2 */
+
+  /* USER CODE END TIM4_Init 2 */
+
+}
+
+/**
   * @brief TIM5 Initialization Function
   * @param None
   * @retval None
@@ -400,7 +457,13 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, M_A_Pin|M_B_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOA, M_D_Pin|LD2_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(M_C_GPIO_Port, M_C_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
@@ -408,12 +471,26 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : LD2_Pin */
-  GPIO_InitStruct.Pin = LD2_Pin;
+  /*Configure GPIO pins : M_A_Pin M_B_Pin */
+  GPIO_InitStruct.Pin = M_A_Pin|M_B_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : M_D_Pin LD2_Pin */
+  GPIO_InitStruct.Pin = M_D_Pin|LD2_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : M_C_Pin */
+  GPIO_InitStruct.Pin = M_C_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(M_C_GPIO_Port, &GPIO_InitStruct);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
@@ -450,13 +527,33 @@ void StartDefaultTask(void *argument)
   for(;;)
   {
 	float distance = ultrasonic_get_distance();
-	if (distance == -1) {
-		sprintf(msg, "Distance: OUT OF RANGE\r\n");
-	} else {
-		sprintf(msg, "Distance: %0.2f cm\r\n", distance);
+
+	// Get the current angle (in degrees) and round it to the nearest integer.
+	int angle = (int)(stepper_get_angle() + 0.5f);
+
+	int fixed_angle = angle;
+	if (fixed_angle > 350) {
+		fixed_angle = 0;
+	} else if (fixed_angle > 90) {
+		fixed_angle = 90;
 	}
-	HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
-	HAL_Delay(500);
+
+	if (distance == -1) {
+
+		sprintf(msg, "Angle:  %d°; Distance: OOR\r\n", fixed_angle);
+	} else {
+		sprintf(msg, "Angle:  %d°; Distance: %0.2f cm\r\n", fixed_angle, distance);
+	}
+
+	  // Transmit the message over UART.
+	  HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
+	  if (angle > 90) {
+		  stepper_disable();
+		  osDelay(1000);
+		  stepper_change_direction();
+		  stepper_enable();
+	  }
+	osDelay(100);
   }
   /* USER CODE END 5 */
 }
@@ -477,8 +574,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   if (htim->Instance == TIM2) {
     HAL_IncTick();
   }
-  /* USER CODE BEGIN Callback 1 */
 
+  /* USER CODE BEGIN Callback 1 */
+  if (htim->Instance == TIM4) {
+	  stepper_full_drive();
+  }
   /* USER CODE END Callback 1 */
 }
 

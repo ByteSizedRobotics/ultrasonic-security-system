@@ -17,36 +17,36 @@ struct ultrasonic_conf {
     volatile uint32_t *echo_start_time;  /**< Pointer to the start time of the echo pulse. */
     volatile uint32_t *echo_end_time;    /**< Pointer to the end time of the echo pulse. */
     uint32_t flag_os_thread;             /**< OS flag used to signal completion of the echo measurement. */
-} conf;
+} ultrasonic_conf;
 
 
 void ultrasonic_init(TIM_HandleTypeDef *timer, volatile uint32_t *echo_start_time, volatile uint32_t *echo_end_time, uint32_t flag_os_thread) {
-    conf.timer = timer;						  // Set pointer to timer handle
-	conf.echo_start_time = echo_start_time;   // Set pointer to echo start time
-    conf.echo_end_time = echo_end_time;       // Set pointer to echo end time
-    conf.flag_os_thread = flag_os_thread;     // Set the OS flag to notify completion
+    ultrasonic_conf.timer = timer;						  // Set pointer to timer handle
+	ultrasonic_conf.echo_start_time = echo_start_time;   // Set pointer to echo start time
+    ultrasonic_conf.echo_end_time = echo_end_time;       // Set pointer to echo end time
+    ultrasonic_conf.flag_os_thread = flag_os_thread;     // Set the OS flag to notify completion
 }
 
 
 float ultrasonic_get_distance() {
     // Trigger the ultrasonic pulse
-	__HAL_TIM_ENABLE(conf.timer);
+	__HAL_TIM_ENABLE(ultrasonic_conf.timer);
 
     // Wait for the OS flag to indicate that the echo measurement is done
-    osThreadFlagsWait(conf.flag_os_thread, osFlagsWaitAny, osWaitForever);
+    osThreadFlagsWait(ultrasonic_conf.flag_os_thread, osFlagsWaitAny, osWaitForever);
 
     // Reset the OS flag after the measurement is done
-    osThreadFlagsClear(conf.flag_os_thread);
+    osThreadFlagsClear(ultrasonic_conf.flag_os_thread);
 
     float distance;
 
     // Calculate the distance by checking the time difference between the start and end times of the echo
-    if (*conf.echo_start_time < *conf.echo_end_time) {
+    if (*ultrasonic_conf.echo_start_time < *ultrasonic_conf.echo_end_time) {
         // Normal case: echo_end_time is after echo_start_time
-        distance = (*conf.echo_end_time - *conf.echo_start_time) * 0.034 / 2;
+        distance = (*ultrasonic_conf.echo_end_time - *ultrasonic_conf.echo_start_time) * 0.034 / 2;
     } else {
         // Edge case: echo_end_time might have wrapped around
-        distance = ((0xFFFFFF - *conf.echo_start_time) - *conf.echo_end_time) * 0.034 / 2;
+        distance = ((0xFFFFFF - *ultrasonic_conf.echo_start_time) - *ultrasonic_conf.echo_end_time) * 0.034 / 2;
     }
 
     // Check if the distance is within the valid range
