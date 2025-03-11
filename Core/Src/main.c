@@ -47,14 +47,15 @@
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim4;
 TIM_HandleTypeDef htim5;
+TIM_HandleTypeDef htim10;
 
 UART_HandleTypeDef huart2;
 UART_HandleTypeDef huart6;
 
-/* Definitions for defaultTask */
-osThreadId_t defaultTaskHandle;
-const osThreadAttr_t defaultTask_attributes = {
-  .name = "defaultTask",
+/* Definitions for ultrasonicTask */
+osThreadId_t ultrasonicTaskHandle;
+const osThreadAttr_t ultrasonicTask_attributes = {
+  .name = "ultrasonicTask",
   .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
@@ -63,6 +64,11 @@ volatile uint32_t g_echoStartTime;  // Stores the timestamp at the rising edge
 volatile uint32_t g_echoEndTime;  // Stores the timestamp at the falling edge
 volatile uint8_t echo_started = 0;  // Flag to track first/second capture
 char msg[50];
+
+// whether the sleep mode should be started
+volatile char start_sleep = 0;
+// whether the motor is at the start angle (0 deg)
+char angle_start = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -73,7 +79,8 @@ static void MX_TIM1_Init(void);
 static void MX_TIM5_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_USART6_UART_Init(void);
-void StartDefaultTask(void *argument);
+static void MX_TIM10_Init(void);
+void UltrasonicTask(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -118,7 +125,26 @@ int main(void)
   MX_TIM5_Init();
   MX_TIM4_Init();
   MX_USART6_UART_Init();
+  MX_TIM10_Init();
   /* USER CODE BEGIN 2 */
+  if (__HAL_PWR_GET_FLAG(PWR_FLAG_SB) != RESET)
+    {
+  	  __HAL_PWR_CLEAR_FLAG(PWR_FLAG_SB);  // clear the flag
+
+  	  /** display  the string **/
+  	  char *str = "Wakeup from the STANDBY MODE\n\n";
+  	  HAL_UART_Transmit(&huart2, (uint8_t *)str, strlen (str), HAL_MAX_DELAY);
+
+  	  /** Blink the LED **/
+  	  for (int i=0; i<20; i++)
+  	  {
+  		  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
+  		  HAL_Delay(200);
+  	  }
+
+  	  /** Disable the WWAKEUP PIN **/
+  	  HAL_PWR_DisableWakeUpPin(PWR_WAKEUP_PIN1);  // disable PA0
+    }
   // Ultrasonic Sensor setup
   HAL_TIM_IC_Start_IT(&htim5, TIM_CHANNEL_2);
   HAL_TIM_OnePulse_Start(&htim1, TIM_CHANNEL_1);
@@ -128,9 +154,11 @@ int main(void)
   // Stepper setup
   HAL_TIM_Base_Start_IT(&htim4);
   stepper_init(&htim4, TIM4_IRQn);
-
-  int pressed = 0;
   stepper_set_speed(10000);
+
+  // Sleep mode timer
+  HAL_TIM_Base_Start_IT(&htim10);
+  HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -153,8 +181,8 @@ int main(void)
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* creation of defaultTask */
-  defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
+  /* creation of ultrasonicTask */
+  ultrasonicTaskHandle = osThreadNew(UltrasonicTask, NULL, &ultrasonicTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -410,6 +438,37 @@ static void MX_TIM5_Init(void)
 }
 
 /**
+  * @brief TIM10 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM10_Init(void)
+{
+
+  /* USER CODE BEGIN TIM10_Init 0 */
+
+  /* USER CODE END TIM10_Init 0 */
+
+  /* USER CODE BEGIN TIM10_Init 1 */
+
+  /* USER CODE END TIM10_Init 1 */
+  htim10.Instance = TIM10;
+  htim10.Init.Prescaler = 42000-1;
+  htim10.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim10.Init.Period = 10000-1;
+  htim10.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim10.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim10) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM10_Init 2 */
+
+  /* USER CODE END TIM10_Init 2 */
+
+}
+
+/**
   * @brief USART2 Initialization Function
   * @param None
   * @retval None
@@ -528,6 +587,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(M_C_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : PIR_Pin */
+  GPIO_InitStruct.Pin = PIR_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(PIR_GPIO_Port, &GPIO_InitStruct);
+
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
 }
@@ -542,21 +607,21 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
             g_echoEndTime = __HAL_TIM_GET_COUNTER(&htim5);
             echo_started = 0;
             // Set flag, indicating measurement is ready
-            osThreadFlagsSet(defaultTaskHandle, 0x1);
+            osThreadFlagsSet(ultrasonicTaskHandle, 0x1);
         }
     }
 }
 
 /* USER CODE END 4 */
 
-/* USER CODE BEGIN Header_StartDefaultTask */
+/* USER CODE BEGIN Header_UltrasonicTask */
 /**
-  * @brief  Function implementing the defaultTask thread.
+  * @brief  Function implementing the ultrasonicTask thread.
   * @param  argument: Not used
   * @retval None
   */
-/* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void *argument)
+/* USER CODE END Header_UltrasonicTask */
+void UltrasonicTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
   /* Infinite loop */
@@ -577,6 +642,13 @@ void StartDefaultTask(void *argument)
 	if (distance == -1) {
 		sprintf(msg, "Angle:  %d°; Distance: OOR\r\n", fixed_angle);
 	} else {
+		// reset timer for sleep mode
+		__HAL_TIM_SET_COUNTER(&htim10, 0);
+		// if scheduled to start sleep and object detected, unschedule sleep
+		if (start_sleep) {
+			start_sleep = 0;
+			HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
+		}
 		sprintf(msg, "Angle:  %d°; Distance: %0.2f cm\r\n", fixed_angle, distance);
 	}
 
@@ -584,6 +656,17 @@ void StartDefaultTask(void *argument)
 	  HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
 	  HAL_UART_Transmit(&huart6, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
 	  if (angle >= 90) {
+		  // if at the start position and sleep is scheduled, go into standby mode
+		  if (angle_start) {
+			  if (start_sleep) {
+				  sprintf(msg, "Starting sleep mode\r\n");
+				  HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
+				  __HAL_PWR_CLEAR_FLAG(PWR_FLAG_WU);
+				  HAL_PWR_EnableWakeUpPin(PWR_WAKEUP_PIN1);
+				  HAL_PWR_EnterSTANDBYMode();
+			  }
+			  angle_start = 0;
+		  } else angle_start = 1;
 		  stepper_disable();
 		  osDelay(1000);
 		  stepper_change_direction();
@@ -613,6 +696,13 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   /* USER CODE BEGIN Callback 1 */
   if (htim->Instance == TIM4) {
 	  stepper_full_drive();
+  }
+
+  if (htim->Instance == TIM10) {
+	  if (HAL_GPIO_ReadPin(PIR_GPIO_Port, PIR_Pin) == GPIO_PIN_SET) {
+		  HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
+		  start_sleep = 1;
+	  }
   }
   /* USER CODE END Callback 1 */
 }
