@@ -651,10 +651,16 @@ void UltrasonicTask(void *argument)
 		}
 		sprintf(msg, "Angle:  %d°; Distance: %0.2f cm\r\n", fixed_angle, distance);
 	}
-
-	  // Transmit the message over UART.
 	  HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
-	  HAL_UART_Transmit(&huart6, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
+
+
+	  // Create a buffer to hold binary data
+	  uint8_t data[8];
+	  memcpy(data, &fixed_angle, sizeof(fixed_angle)); // Copy int (4 bytes)
+	  memcpy(data + sizeof(fixed_angle), &distance, sizeof(distance)); // Copy float (4 bytes)
+
+	  // Transmit binary data
+	  HAL_UART_Transmit(&huart6, data, sizeof(data), HAL_MAX_DELAY);
 	  if (angle >= 90) {
 		  // if at the start position and sleep is scheduled, go into standby mode
 		  if (angle_start) {
@@ -699,7 +705,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   }
 
   if (htim->Instance == TIM10) {
-	  if (HAL_GPIO_ReadPin(PIR_GPIO_Port, PIR_Pin) == GPIO_PIN_SET) {
+	  if (HAL_GPIO_ReadPin(PIR_GPIO_Port, PIR_Pin) != GPIO_PIN_SET) {
 		  HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
 		  start_sleep = 1;
 	  }
