@@ -13,3 +13,4 @@ Exigences Non-Fonctionnelles
 - Fiabilité : Les données sur les détections et leurs proximités doivent être juste et assez précis.
 - Portabilité : Le système doit être portable pour être utilisable dans différents scénarios.
 - Latence faible : Le délai entre une détection et la visualisation sur l’application web ne devrait pas dépasser 1 seconde.
+
