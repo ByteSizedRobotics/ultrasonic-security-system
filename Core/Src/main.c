@@ -558,7 +558,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOA, M_D_Pin|LD2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(M_C_GPIO_Port, M_C_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, M_C_Pin|BUZZ_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
@@ -587,11 +587,22 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(M_C_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PIR_Pin */
-  GPIO_InitStruct.Pin = PIR_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  /*Configure GPIO pin : PIR_INT_Pin */
+  GPIO_InitStruct.Pin = PIR_INT_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-  HAL_GPIO_Init(PIR_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(PIR_INT_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : BUZZ_Pin */
+  GPIO_InitStruct.Pin = BUZZ_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(BUZZ_GPIO_Port, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
@@ -612,6 +623,18 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
     }
 }
 
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+    if(GPIO_Pin == PIR_INT_Pin) // If The INT Source Is EXTI Line9 (A9 Pin)
+    {
+		__HAL_TIM_SET_COUNTER(&htim10, 0);
+		// if scheduled to start sleep and object detected, unschedule sleep
+		if (start_sleep) {
+			start_sleep = 0;
+			HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
+		}
+    }
+}
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_UltrasonicTask */
@@ -640,8 +663,14 @@ void UltrasonicTask(void *argument)
 	}
 
 	if (distance == -1) {
+		HAL_GPIO_WritePin(BUZZ_GPIO_Port, BUZZ_Pin, GPIO_PIN_RESET);
 		sprintf(msg, "Angle:  %d°; Distance: OOR\r\n", fixed_angle);
 	} else {
+		if (distance < 30) {
+			HAL_GPIO_WritePin(BUZZ_GPIO_Port, BUZZ_Pin, GPIO_PIN_SET);
+		} else {
+			HAL_GPIO_WritePin(BUZZ_GPIO_Port, BUZZ_Pin, GPIO_PIN_RESET);
+		}
 		// reset timer for sleep mode
 		__HAL_TIM_SET_COUNTER(&htim10, 0);
 		// if scheduled to start sleep and object detected, unschedule sleep
@@ -661,7 +690,7 @@ void UltrasonicTask(void *argument)
 
 	  // Transmit binary data
 	  HAL_UART_Transmit(&huart6, data, sizeof(data), HAL_MAX_DELAY);
-	  if (angle >= 90) {
+	  if ((angle_start && angle > 350) || (!angle_start && angle >= 90)) {
 		  // if at the start position and sleep is scheduled, go into standby mode
 		  if (angle_start) {
 			  if (start_sleep) {
@@ -705,9 +734,17 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   }
 
   if (htim->Instance == TIM10) {
-	  if (HAL_GPIO_ReadPin(PIR_GPIO_Port, PIR_Pin) != GPIO_PIN_SET) {
+	  if (HAL_GPIO_ReadPin(PIR_INT_GPIO_Port, PIR_INT_Pin) != GPIO_PIN_SET) {
 		  HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
 		  start_sleep = 1;
+	  } else {
+		// reset timer for sleep mode
+		__HAL_TIM_SET_COUNTER(&htim10, 0);
+		// if scheduled to start sleep and object detected, unschedule sleep
+		if (start_sleep) {
+			start_sleep = 0;
+			HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
+		}
 	  }
   }
   /* USER CODE END Callback 1 */
