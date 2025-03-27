@@ -650,7 +650,12 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
+    memcpy(&speed_mode, &RxData[0], 4);
+    memcpy(&threshold, &RxData[4], 4);
+    memcpy(&max_range, &RxData[8], 4);
+    memcpy(&duration, &RxData[12], 4);
 
+    HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
 
 	HAL_UART_Receive_IT(&huart6, RxData, 16);
 }
