@@ -655,9 +655,12 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
     memcpy(&max_range, &RxData[8], 4);
     memcpy(&duration, &RxData[12], 4);
 
+	sprintf(msg, "%d,%d,%d,%d\r\n", speed_mode, threshold, max_range, duration);
+	HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
+
     HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
 
-	HAL_UART_Receive_IT(&huart6, RxData, 16);
+    HAL_UART_Receive_IT(&huart6, RxData, 16);
 }
 /* USER CODE END 4 */
 
