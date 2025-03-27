@@ -65,10 +65,19 @@ volatile uint32_t g_echoEndTime;  // Stores the timestamp at the falling edge
 volatile uint8_t echo_started = 0;  // Flag to track first/second capture
 char msg[50];
 
+// UART Receive Buffer
+uint8_t RxData[16];
+
 // whether the sleep mode should be started
 volatile char start_sleep = 0;
 // whether the motor is at the start angle (0 deg)
 char angle_start = 0;
+
+// config
+int speed_mode = 0;
+int threshold = 30;
+int max_range = 50;
+int duration = 10;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -159,6 +168,9 @@ int main(void)
   // Sleep mode timer
   HAL_TIM_Base_Start_IT(&htim10);
   HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
+
+  // UART Receive Interrupt
+  HAL_UART_Receive_IT(&huart6, RxData, 16);
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -635,6 +647,13 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 		}
     }
 }
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+
+
+	HAL_UART_Receive_IT(&huart6, RxData, 16);
+}
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_UltrasonicTask */
@@ -684,9 +703,13 @@ void UltrasonicTask(void *argument)
 
 
 	  // Create a buffer to hold binary data
-	  uint8_t data[8];
+	  uint8_t data[24];
 	  memcpy(data, &fixed_angle, sizeof(fixed_angle)); // Copy int (4 bytes)
 	  memcpy(data + sizeof(fixed_angle), &distance, sizeof(distance)); // Copy float (4 bytes)
+	  memcpy(data + sizeof(distance) * 2, &speed_mode, sizeof(speed_mode)); // Copy int (4 bytes)
+	  memcpy(data + sizeof(speed_mode) * 3, &threshold, sizeof(threshold)); // Copy int (4 bytes)
+	  memcpy(data + sizeof(threshold) * 4, &max_range, sizeof(max_range)); // Copy int (4 bytes)
+	  memcpy(data + sizeof(max_range) * 5, &duration, sizeof(duration)); // Copy int (4 bytes)
 
 	  // Transmit binary data
 	  HAL_UART_Transmit(&huart6, data, sizeof(data), HAL_MAX_DELAY);
