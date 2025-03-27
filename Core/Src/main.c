@@ -77,7 +77,7 @@ char angle_start = 0;
 int speed_mode = 0;
 int threshold = 30;
 int max_range = 50;
-int duration = 10;
+int duration = 20;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -717,8 +717,22 @@ void UltrasonicTask(void *argument)
 		  // if at the start position and sleep is scheduled, go into standby mode
 		  if (angle_start) {
 			  if (start_sleep) {
+				  // Send message indicating sleep mode is starting
+				  speed_mode = 2;
+				  uint8_t data[24];
+				  memcpy(data, &fixed_angle, sizeof(fixed_angle)); // Copy int (4 bytes)
+				  memcpy(data + sizeof(fixed_angle), &distance, sizeof(distance)); // Copy float (4 bytes)
+				  memcpy(data + sizeof(distance) * 2, &speed_mode, sizeof(speed_mode)); // Copy int (4 bytes)
+				  memcpy(data + sizeof(speed_mode) * 3, &threshold, sizeof(threshold)); // Copy int (4 bytes)
+				  memcpy(data + sizeof(threshold) * 4, &max_range, sizeof(max_range)); // Copy int (4 bytes)
+				  memcpy(data + sizeof(max_range) * 5, &duration, sizeof(duration)); // Copy int (4 bytes)
+
+				  // Transmit binary data
+				  HAL_UART_Transmit(&huart6, data, sizeof(data), HAL_MAX_DELAY);
+
 				  sprintf(msg, "Starting sleep mode\r\n");
 				  HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
+
 				  __HAL_PWR_CLEAR_FLAG(PWR_FLAG_WU);
 				  HAL_PWR_EnableWakeUpPin(PWR_WAKEUP_PIN1);
 				  HAL_PWR_EnterSTANDBYMode();
