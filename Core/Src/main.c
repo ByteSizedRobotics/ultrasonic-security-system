@@ -77,7 +77,7 @@ char angle_start = 0;
 int speed_mode = 0;
 int threshold = 30;
 int max_range = 50;
-int duration = 20;
+int duration = 5;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -655,7 +655,52 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
     memcpy(&max_range, &RxData[8], 4);
     memcpy(&duration, &RxData[12], 4);
 
-	sprintf(msg, "%d,%d,%d,%d\r\n", speed_mode, threshold, max_range, duration);
+    // speed mode
+    if (speed_mode == 1) {
+  	  stepper_set_speed(7500);
+    } else {
+    	speed_mode = 0;
+	  stepper_set_speed(10000);
+    }
+
+    // threshold
+    if (threshold == 10) {
+
+    } else if (threshold == 50) {
+
+    } else if (threshold == 100) {
+
+    } else {
+    	threshold = 30;
+    }
+
+    // max range
+    if (max_range == 250) {
+
+    } else if (max_range == 400) {
+
+    } else {
+    	max_range = 50;
+    }
+
+    // duration
+    if (duration == 2) {
+    	__HAL_TIM_SET_AUTORELOAD(&htim10, 4000-1);
+    	htim10.Instance->EGR |= TIM_EGR_UG;
+    } else if (duration == 5) {
+    	__HAL_TIM_SET_AUTORELOAD(&htim10, 10000-1);
+    	htim10.Instance->EGR |= TIM_EGR_UG;
+    } else if (duration == 30) {
+    	__HAL_TIM_SET_AUTORELOAD(&htim10, 60000-1);
+    	htim10.Instance->EGR |= TIM_EGR_UG;
+    } else {
+    	duration = 10;
+    	__HAL_TIM_SET_AUTORELOAD(&htim10, 20000-1);
+    	htim10.Instance->EGR |= TIM_EGR_UG;
+    }
+
+
+	sprintf(msg, "Updated settings: %d,%d,%d,%d\r\n", speed_mode, threshold, max_range, duration);
 	HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
 
     HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
@@ -689,11 +734,12 @@ void UltrasonicTask(void *argument)
 		fixed_angle = 90;
 	}
 
-	if (distance == -1) {
+	if (distance == -1 || distance > max_range) {
+		distance = -1;
 		HAL_GPIO_WritePin(BUZZ_GPIO_Port, BUZZ_Pin, GPIO_PIN_RESET);
 		sprintf(msg, "Angle:  %d°; Distance: OOR\r\n", fixed_angle);
 	} else {
-		if (distance < 30) {
+		if (distance < threshold) {
 			HAL_GPIO_WritePin(BUZZ_GPIO_Port, BUZZ_Pin, GPIO_PIN_SET);
 		} else {
 			HAL_GPIO_WritePin(BUZZ_GPIO_Port, BUZZ_Pin, GPIO_PIN_RESET);
