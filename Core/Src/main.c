@@ -163,7 +163,7 @@ int main(void)
   // Stepper setup
   HAL_TIM_Base_Start_IT(&htim4);
   stepper_init(&htim4, TIM4_IRQn);
-  stepper_set_speed(10000);
+  stepper_set_speed(11000);
 
   // Sleep mode timer
   HAL_TIM_Base_Start_IT(&htim10);
@@ -657,10 +657,10 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
     // speed mode
     if (speed_mode == 1) {
-  	  stepper_set_speed(7500);
+  	  stepper_set_speed(6500);
     } else {
     	speed_mode = 0;
-	  stepper_set_speed(10000);
+	  stepper_set_speed(11000);
     }
 
     // threshold
@@ -675,9 +675,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
     }
 
     // max range
-    if (max_range == 250) {
-
-    } else if (max_range == 400) {
+    if (max_range == 150) {
 
     } else {
     	max_range = 50;
@@ -767,7 +765,7 @@ void UltrasonicTask(void *argument)
 
 	  // Transmit binary data
 	  HAL_UART_Transmit(&huart6, data, sizeof(data), HAL_MAX_DELAY);
-	  if ((angle_start && angle > 350) || (!angle_start && angle >= 90)) {
+	  if ((angle_start && angle > 350) || (!angle_start && (angle >= 90 && angle < 100))) {
 		  // if at the start position and sleep is scheduled, go into standby mode
 		  if (angle_start) {
 			  if (start_sleep) {
